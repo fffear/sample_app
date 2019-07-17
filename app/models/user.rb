@@ -1,5 +1,6 @@
 class User < ApplicationRecord
   attr_accessor :remember_token, :activation_token, :reset_token
+  has_many :microposts, dependent: :destroy
 
   VALID_EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i
   before_save :downcase_email
@@ -11,6 +12,26 @@ class User < ApplicationRecord
                     uniqueness: { case_sensitive: false }
   has_secure_password
   validates :password, presence: true, length: { minimum: 6 }, allow_nil: true
+
+  class << self
+    # Returns the hash digest of the given string.
+    def digest(string)
+      cost = ActiveModel::SecurePassword.min_cost ? BCrypt::Engine::MIN_COST :
+                                                    BCrypt::Engine.cost
+      BCrypt::Password.create(string, cost: cost)
+    end
+
+    # Returns a random token.
+    def new_token
+      SecureRandom.urlsafe_base64
+    end
+  end
+
+   # Defines a proto-feed.
+  # See "Following users" for the full implementation.
+  def feed
+    Micropost.where("user_id = ?", id)
+  end
 
   # Remembers a user in the database for use in persistent sessions.
   def remember
@@ -55,24 +76,10 @@ class User < ApplicationRecord
     reset_sent_at < 2.hours.ago
   end
 
-  class << self
-    # Returns the hash digest of the given string.
-    def digest(string)
-      cost = ActiveModel::SecurePassword.min_cost ? BCrypt::Engine::MIN_COST :
-                                                    BCrypt::Engine.cost
-      BCrypt::Password.create(string, cost: cost)
-    end
-
-    # Returns a random token.
-    def new_token
-      SecureRandom.urlsafe_base64
-    end
-  end
-
   private
     # Converts email to all lower-case.
     def downcase_email
-      self.email = email.downcase
+      email.downcase!
     end
 
     # Creates and assigns the activation token and digest.
